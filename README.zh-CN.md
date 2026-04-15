@@ -1,5 +1,7 @@
 # OpenClaw Node 接入手册
 
+语言: [English](./README.md) | [简体中文](./README.zh-CN.md)
+
 这是一份实战版记录，主题是：
 
 - 树莓派上用 Docker 跑 OpenClaw gateway

@@ -1,5 +1,7 @@
 # OpenClaw Node Playbook
 
+Languages: [English](./README.md) | [简体中文](./README.zh-CN.md)
+
 Practical notes for running an OpenClaw gateway on a Raspberry Pi and attaching a macOS machine as a node.
 
 This repo documents a real deployment with these properties:
