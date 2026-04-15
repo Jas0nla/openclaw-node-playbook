@@ -1,6 +1,8 @@
 # OpenClaw Node Playbook
 
-Languages: [English](./README.md) | [简体中文](./README.zh-CN.md)
+> Language / 语言: **English** | [简体中文](./README.zh-CN.md)
+>
+> Default landing document for this repository.
 
 Practical notes for running an OpenClaw gateway on a Raspberry Pi and attaching a macOS machine as a node.
 

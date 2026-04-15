@@ -1,6 +1,8 @@
 # OpenClaw Node 接入手册
 
-语言: [English](./README.md) | [简体中文](./README.zh-CN.md)
+> 语言 / Language: [English](./README.md) | **简体中文**
+>
+> 当前是中文文档。返回默认首页请点上面的 `English`。
 
 这是一份实战版记录，主题是：
 
