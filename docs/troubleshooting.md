@@ -44,6 +44,61 @@ Typical triggers:
 3. prefer node-native capabilities like `system.which`
 4. move browser work to `browser.proxy`
 
+## Symptom: SSH and UI both become slow after UI maintenance work
+
+Do not assume the gateway is the only culprit.
+
+In this environment, a more likely cause is leftover build or test workers in the source tree on the Pi.
+
+Check:
+
+```bash
+ps -ef | egrep 'vitest|vite' | grep -v grep
+```
+
+Common offenders:
+
+- `vitest/dist/workers/forks.js`
+- `node ./node_modules/.bin/vitest run ...`
+- `vite build`
+
+If these remain after a maintenance run, kill them before continuing and then re-check:
+
+1. SSH responsiveness
+2. gateway `/healthz`
+3. control UI page load
+
+## Symptom: UI patching made the frontend inconsistent
+
+Do not hot-edit `index-*.js` files in the live container as the normal fix path.
+
+Use this sequence instead:
+
+1. edit source
+2. rebuild `dist`
+3. back up `/app/dist/control-ui`
+4. replace the deployed `control-ui` directory
+5. restart the gateway
+6. validate `/healthz` and `/`
+
+If the UI becomes blank after deployment, restore the previous `control-ui` backup and restart the gateway.
+
+## Symptom: Docker memory limits appear configured but do not apply
+
+If `docker compose up -d` prints warnings like:
+
+- `Your kernel does not support memory limit capabilities`
+- `Limitation discarded`
+
+then the Pi kernel/cgroup setup is not enforcing container memory caps.
+
+In that case:
+
+1. keep `mem_limit` and `mem_reservation` in compose as documentation of the intended budget
+2. do not assume Docker will actually enforce them
+3. rely on `NODE_OPTIONS=--max-old-space-size=1024` and operational discipline to avoid runaway memory usage
+4. treat stray `vitest` or `vite` workers as a higher-priority risk than the steady-state gateway
+
 ## Symptom: `browser control disabled`
 
 Split this into two branches:

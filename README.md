@@ -60,6 +60,88 @@ Upgrade pattern:
 2. `docker compose pull`
 3. `docker compose up -d`
 
+## Stability Hardening On Raspberry Pi
+
+This deployment should keep the existing two-service layout:
+
+- `openclaw-gateway`
+- `openclaw-cli`
+
+Do not collapse it into a single minimal container unless you are intentionally trading away operational convenience.
+
+For the Pi deployment, the working hardening baseline is:
+
+- `openclaw-gateway`
+  - `mem_limit: 1500m`
+  - `mem_reservation: 512m`
+  - `NODE_OPTIONS=--max-old-space-size=1024`
+  - Docker log rotation enabled
+- `openclaw-cli`
+  - `mem_limit: 768m`
+  - `mem_reservation: 128m`
+  - `NODE_OPTIONS=--max-old-space-size=1024`
+  - Docker log rotation enabled
+
+Important caveat:
+
+- if the Pi kernel/cgroup setup does not support Docker memory limits, `mem_limit` and `mem_reservation` will be accepted by compose but ignored at runtime
+- in that case, `NODE_OPTIONS=--max-old-space-size=1024` still matters, but Docker-level memory caps do not
+
+Reason:
+
+- the Pi hosts multiple other services
+- OpenClaw is not the only memory consumer
+- runaway test/build workers are a larger practical risk than the steady-state gateway alone
+
+## Operational Rules For UI Work
+
+Do not treat the Pi as a long-running frontend development box.
+
+Rules:
+
+1. only run `pnpm install`, `vitest`, or `vite build` on the Pi when there is a concrete maintenance need
+2. after every test/build, immediately check for leftover workers:
+   - `ps -ef | egrep 'vitest|vite'`
+3. do not leave background `vitest` or `vite` workers running
+4. if load or SSH responsiveness degrades, inspect test/build leftovers before blaming the gateway
+
+This matters because a stuck `vitest` worker can push the Pi load very high and make:
+
+- SSH banner exchange stall
+- gateway health checks flap
+- UI load slowly or time out
+
+## UI Deployment Rule
+
+For frontend fixes, only use:
+
+1. edit source
+2. rebuild `dist`
+3. back up the current `/app/dist/control-ui`
+4. replace the deployed `control-ui` directory
+5. restart the gateway
+6. verify `/healthz` and `/`
+
+Do not live-patch compiled `index-*.js` files inside the running container.
+
+That creates hard-to-debug states and makes rollback harder.
+
+## Rollback Rule
+
+Every UI deployment should create a timestamped backup of the current `control-ui` directory first.
+
+If a new frontend deploy causes:
+
+- blank page
+- failing health checks
+- broken asset loading
+
+rollback should mean:
+
+1. restore the previous `control-ui` backup
+2. restart `openclaw-pilot-gateway`
+3. verify `healthz` and the root page again
+
 ## Node Setup Summary
 
 macOS side:

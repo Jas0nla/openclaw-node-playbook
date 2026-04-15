@@ -58,6 +58,95 @@ Pi 宿主机：
 2. `docker compose pull`
 3. `docker compose up -d`
 
+## 树莓派稳定性加固基线
+
+这套部署应继续保留现有双服务结构：
+
+- `openclaw-gateway`
+- `openclaw-cli`
+
+不要为了把 compose 写短，就改成单容器极简版。
+
+这台 Pi 上当前推荐的稳定性基线是：
+
+- `openclaw-gateway`
+  - `mem_limit: 1500m`
+  - `mem_reservation: 512m`
+  - `NODE_OPTIONS=--max-old-space-size=1024`
+  - 开启 Docker 日志轮转
+- `openclaw-cli`
+  - `mem_limit: 768m`
+  - `mem_reservation: 128m`
+  - `NODE_OPTIONS=--max-old-space-size=1024`
+  - 开启 Docker 日志轮转
+
+重要提醒：
+
+- 如果 Pi 当前内核/cgroup 不支持 Docker memory limit，那么 `mem_limit` 和 `mem_reservation` 虽然能写进 compose，但运行时会被忽略
+- 这种情况下，真正还能继续生效的是 `NODE_OPTIONS=--max-old-space-size=1024` 这类 Node 进程级限制，而不是 Docker 容器级内存硬限制
+
+原因：
+
+- Pi 上还跑着很多别的服务
+- OpenClaw 不是唯一的资源消费者
+- 实战里真正更容易把机器拖死的，往往是残留的测试/构建 worker，而不是 steady-state gateway 本身
+
+## Pi 上做 UI 维护的操作规则
+
+不要把这台 Pi 当成长期前端开发机。
+
+固定规则：
+
+1. 只有在明确需要维护时，才在 Pi 上跑：
+   - `pnpm install`
+   - `vitest`
+   - `vite build`
+2. 每次测试/构建结束后，立刻检查残留：
+   - `ps -ef | egrep 'vitest|vite'`
+3. 不允许把后台 `vitest` / `vite` worker 留着不管
+4. 一旦 SSH 或 UI 开始发抖，优先先查测试/构建残留，不要先怪 gateway
+
+这条规则非常重要，因为卡住的 `vitest` worker` 会直接导致：
+
+- SSH banner 交换变慢
+- gateway 健康检查抖动
+- UI 页面加载超时
+
+## 前端修复的唯一正确路径
+
+以后所有 UI 修复都只走这条路径：
+
+1. 改源码
+2. 重新 build `dist`
+3. 先备份当前 `/app/dist/control-ui`
+4. 再整目录替换部署产物
+5. 重启 gateway
+6. 验证 `/healthz` 和首页
+
+不要再直接 live patch 容器里的 `index-*.js` 编译产物。
+
+那样会造成：
+
+- 线上状态不可追踪
+- 回滚复杂
+- 很难判断到底是源码问题还是临时热修问题
+
+## 回滚规则
+
+每次 UI 部署前，都要先创建一个带时间戳的 `control-ui` 备份目录。
+
+如果新前端导致：
+
+- 空白页
+- 健康检查异常
+- 资源加载失败
+
+回滚步骤必须固定为：
+
+1. 还原上一份 `control-ui` 备份
+2. 重启 `openclaw-pilot-gateway`
+3. 再验证 `healthz` 和首页
+
 ## Node 接入摘要
 
 macOS 端涉及这些：
