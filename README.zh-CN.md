@@ -6,6 +6,7 @@
 - 一台 macOS 机器作为 node 接进来
 - node 用来承接本机浏览器和系统能力
 - 即使 UI 里已经 `paired` + `connected`，`exec` 仍然可能因为 runtime safe-binding 被拒
+- 即使 node 看起来带了 `browser.proxy`，如果本机把 `browser` 插件过滤掉，gateway 仍然会报 `browser control disabled`
 
 ## 这份仓库讲什么
 
@@ -16,6 +17,7 @@
 - approvals 到底改哪几层
 - 为什么 approvals 都放开了，`exec` 还是会失败
 - 哪类命令能过，哪类命令会被拦
+- 为什么 `browser control disabled` 可能是 node 本机插件白名单导致的
 
 ## 架构
 
@@ -71,6 +73,42 @@ macOS 端涉及这些：
 
 - Mac 侧本地 loopback 绑定更稳定
 - tunnel 只是把本地 loopback 流量安全转给 Pi gateway
+
+## 一个很容易漏掉的 browser.proxy 条件
+
+node 本机不能把 `browser` 插件从白名单里排掉。
+
+这次 Mac node 原来的坏配置是：
+
+```json
+"plugins": {
+  "allow": ["telegram"]
+}
+```
+
+这会把 `browser` 插件直接过滤掉。结果就是 Pi gateway 侧会出现：
+
+```text
+INVALID_REQUEST: Error: browser control disabled
+```
+
+哪怕你在节点状态里还能看到：
+
+- `caps: ["browser", "system"]`
+- `commands: ["browser.proxy", ...]`
+
+最后真正修好的配置是：
+
+```json
+"plugins": {
+  "allow": ["telegram", "browser"],
+  "entries": {
+    "browser": { "enabled": true }
+  }
+}
+```
+
+改完以后必须重启 node host。
 
 ## 已配置的 exec 策略
 
@@ -154,6 +192,22 @@ INVALID_REQUEST: SYSTEM_RUN_DENIED: approval cannot safely bind this interpreter
 
 不要默认上来就 `sh -lc`。
 
+### 如果 gateway 还报 `browser control disabled`
+
+优先检查 node 本机，而不是只盯着 Pi gateway。
+
+最短检查顺序：
+
+1. node 本机 `browser.enabled=true`
+2. node 本机 `plugins.allow` 里包含 `browser`
+3. 重启 node host
+4. 回到 gateway 上重新跑 `openclaw browser status`
+
+这次实际修好后，Pi gateway 已能成功执行：
+
+- `openclaw browser status`
+- `openclaw browser open https://example.com`
+
 ### 做复杂流程
 
 不要把逻辑全塞进一条 `exec` 命令里。
@@ -170,7 +224,8 @@ INVALID_REQUEST: SYSTEM_RUN_DENIED: approval cannot safely bind this interpreter
 2. Docker 部署下，升级要改宿主机 `.env`，不是点 UI。
 3. `tools.exec.*` 和 host approvals 两层都要对齐。
 4. 两层都开了之后，runtime safe-binding 仍然可能拦解释器包装命令。
-5. 对 node 浏览器工作流，下一步应优先走 `browser.proxy`，不要继续在 `exec` 上堆复杂 shell。
+5. node 本机的 `plugins.allow` 如果漏掉 `browser`，会让 browser 路由继续坏掉。
+6. 对 node 浏览器工作流，下一步应优先走 `browser.proxy`，不要继续在 `exec` 上堆复杂 shell。
 
 ## 文件
 

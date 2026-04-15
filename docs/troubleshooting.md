@@ -44,6 +44,35 @@ Typical triggers:
 3. prefer node-native capabilities like `system.which`
 4. move browser work to `browser.proxy`
 
+## Symptom: `browser control disabled`
+
+Split this into two branches:
+
+1. gateway-side browser config
+2. node-side browser plugin availability
+
+In this environment, the failure persisted even after:
+
+- `browser.enabled=true`
+- gateway browser routing pointed at `jason-mac`
+
+The real blocker was on the node machine:
+
+- local config had `plugins.allow=["telegram"]`
+- that excluded the bundled `browser` plugin
+
+Fix on the node machine:
+
+1. ensure `browser.enabled=true`
+2. ensure `plugins.allow` includes `browser` or remove the restrictive allowlist
+3. ensure `plugins.entries.browser.enabled=true`
+4. restart the node host
+
+Then re-test from the gateway with:
+
+1. `openclaw browser status`
+2. `openclaw browser open https://example.com`
+
 ## What not to assume
 
 - Do not assume a connected node means shell automation is ready
